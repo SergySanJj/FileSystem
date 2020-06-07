@@ -16,7 +16,6 @@ public class Disk implements Serializable {
         return diskCylindersCount * cylinders[0].size();
     }
 
-
     public class Cylinder implements Serializable {
         public static final int cylinderSize = 4;
         public Track[] tracks;
@@ -50,5 +49,19 @@ public class Disk implements Serializable {
         }
     }
 
+    public int cylinderCount() {
+        return cylinders.length;
+    }
 
+    public int trackCount() {
+        return cylinders[0].tracks.length;
+    }
+
+    public int sectorCount() {
+        return cylinders[0].tracks[0].sectors.length;
+    }
+
+    public int bytesCount() {
+        return cylinders[0].tracks[0].sectors[0].bytes.length;
+    }
 }

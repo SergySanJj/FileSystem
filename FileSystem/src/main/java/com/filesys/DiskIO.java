@@ -1,12 +1,42 @@
 package com.filesys;
 
+import com.filesys.disk.BlockLocator;
 import com.filesys.disk.Disk;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 
 public class DiskIO {
     private Disk disk;
     private String diskName;
+
+    private int blockSize = 32;
+    private int logicalBlocks;
+
+    public void read_block(int blockNumber, ByteBuffer buffer) {
+        BlockLocator bl = new BlockLocator(disk, blockSize, blockNumber);
+        for (int i = 0; i < blockSize; i++) {
+            buffer.put(i, bl.read());
+        }
+    }
+
+    public void write_block(int blockNumber, ByteBuffer buffer) {
+        BlockLocator bl = new BlockLocator(disk, blockSize, blockNumber);
+        for (int i = 0; i < blockSize; i++) {
+            bl.write(buffer.get(i));
+        }
+    }
+
+    public DiskIO(int blockSize) {
+        this.blockSize = blockSize;
+    }
+
+    public int getBlockSize() {
+        return blockSize;
+    }
+
+    public DiskIO() {
+    }
 
     public void initialize(String diskName) {
         if (diskExists(diskName)) {
@@ -15,6 +45,12 @@ public class DiskIO {
             this.diskName = diskName;
             createNewDisk();
         }
+
+        logicalBlocks = disk.size() / blockSize;
+    }
+
+    public int getLogicalBlocks() {
+        return logicalBlocks;
     }
 
     public void saveAs(String diskName) {
