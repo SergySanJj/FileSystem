@@ -1,8 +1,9 @@
 package com.filesys.disk;
 
+import java.io.Serializable;
 import java.util.concurrent.CyclicBarrier;
 
-public class Disk {
+public class Disk implements Serializable {
     public static final int diskCylindersCount = 4;
     public Cylinder[] cylinders;
 
@@ -16,7 +17,7 @@ public class Disk {
     }
 
 
-    public class Cylinder {
+    public class Cylinder implements Serializable {
         public static final int cylinderSize = 4;
         public Track[] tracks;
 
@@ -29,7 +30,7 @@ public class Disk {
             return cylinderSize * tracks[0].size();
         }
 
-        public class Track {
+        public class Track implements Serializable {
             public static final int trackSize = 8;
             public Sector[] sectors;
 
@@ -42,7 +43,7 @@ public class Disk {
                 return sectors.length * Sector.sectorSize;
             }
 
-            public class Sector {
+            public class Sector implements Serializable {
                 public static final int sectorSize = 64;
                 public byte[] bytes = new byte[sectorSize];
             }
