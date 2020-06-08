@@ -5,7 +5,6 @@ import com.filesys.disk.Directory;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
-import java.util.Stack;
 
 public class FileSystem {
     public static final int bitmapByteLength = 8;
@@ -85,7 +84,7 @@ public class FileSystem {
             int currentDiskBlock = fileDescriptor.blockNumbers[currentFileBlock];
 
             try {
-                dio.write_block(currentDiskBlock, ByteBuffer.wrap(oft.entries[oftEntryIndex].RWBuffer));
+                dio.write_block(currentDiskBlock, oft.entries[oftEntryIndex].RWBuffer);
             } catch (Exception e) {
                 e.printStackTrace();
             }

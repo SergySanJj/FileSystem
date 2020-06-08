@@ -1,7 +1,5 @@
 package com.filesys.disk;
 
-import java.util.concurrent.Executor;
-
 public class BlockLocator {
     int cylinderNum;
     int trackNum;

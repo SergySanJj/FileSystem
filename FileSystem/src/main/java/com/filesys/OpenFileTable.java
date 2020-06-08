@@ -1,16 +1,18 @@
 package com.filesys;
 
+import java.nio.ByteBuffer;
+
 public class OpenFileTable {
-    static class OFTEntry {
-        byte[] RWBuffer;
+    public static class OFTEntry {
+        ByteBuffer RWBuffer;
         int currentPosition;
         int FDIndex;
 
         boolean bufferModified;
         int fileBlockInBuffer;
 
-        OFTEntry() {
-            RWBuffer = new byte[DiskIO.getBlockSize()];
+        public OFTEntry() {
+            RWBuffer = ByteBuffer.allocate(DiskIO.getBlockSize());
             currentPosition = -1;
             FDIndex = -1;
 
