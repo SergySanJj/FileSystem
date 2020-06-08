@@ -1,32 +1,25 @@
 package com.filesys;
 
-import com.filesys.disk.Disk;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         String diskName = "testDisk";
         DiskIO dio = new DiskIO();
         dio.initialize(diskName);
-        String st = "some really long and long intere";
-        ByteBuffer byteBuffer = ByteBuffer.allocate(64);
-        byteBuffer.put(st.getBytes());
-        dio.write_block(2, byteBuffer);
-        ByteBuffer res = ByteBuffer.allocate(64);
-        dio.read_block(2, res);
+        FileSystem fs = new FileSystem(dio);
+        if (DiskIO.diskExists(diskName)){
+            fs.initFileSystem();
+            fs.loadFileSystem();
+        } else {
+            fs.initFileSystem();
+            fs.initEmptyFileSystem();
+        }
 
-        String v = new String( res.array(), StandardCharsets.UTF_8);
-        System.out.println(v);
-        dio.saveAs(diskName);
-        dio.initialize(diskName);
-        dio.read_block(2,res);
-        v= new String( res.array(), StandardCharsets.UTF_8);
-        System.out.println(v);
+        fs.saveFileSystem(diskName);
+
+        System.out.println("Total logical blocks " + dio.getLogicalBlocks() + " with total capacity of " + dio.getLogicalBlocks()*dio.getBlockSize() + " bytes");
 
     }
 }
