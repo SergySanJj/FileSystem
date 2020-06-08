@@ -14,17 +14,17 @@ public class Main {
         DiskIO dio = new DiskIO();
         dio.initialize(diskName);
         String st = "some really long and long intere";
-        ByteBuffer byteBuffer = ByteBuffer.allocate(40);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(64);
         byteBuffer.put(st.getBytes());
-        dio.write_block(17, byteBuffer);
-        ByteBuffer res = ByteBuffer.allocate(40);
-        dio.read_block(17, res);
+        dio.write_block(2, byteBuffer);
+        ByteBuffer res = ByteBuffer.allocate(64);
+        dio.read_block(2, res);
 
         String v = new String( res.array(), StandardCharsets.UTF_8);
         System.out.println(v);
         dio.saveAs(diskName);
         dio.initialize(diskName);
-        dio.read_block(17,res);
+        dio.read_block(2,res);
         v= new String( res.array(), StandardCharsets.UTF_8);
         System.out.println(v);
 

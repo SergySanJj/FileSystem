@@ -10,7 +10,7 @@ public class DiskIO {
     private Disk disk;
     private String diskName;
 
-    private int blockSize = 32;
+    private int blockSize = 64;
     private int logicalBlocks;
 
     public void read_block(int blockNumber, ByteBuffer buffer) {

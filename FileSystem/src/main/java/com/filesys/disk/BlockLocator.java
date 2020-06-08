@@ -1,5 +1,7 @@
 package com.filesys.disk;
 
+import java.util.concurrent.Executor;
+
 public class BlockLocator {
     int cylinderNum;
     int trackNum;
@@ -15,6 +17,12 @@ public class BlockLocator {
         this.disk = disk;
         this.blockSize = blockSize;
         blocksCount = disk.size() / blockSize;
+
+        if (blockNum>=blocksCount)
+        {
+            System.out.println("Block is out of range");
+            throw new IndexOutOfBoundsException();
+        }
 
         int blocksPerCylinder = blocksCount / disk.cylinderCount();
         cylinderNum = blockNum / blocksPerCylinder;
