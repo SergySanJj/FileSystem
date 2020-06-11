@@ -21,21 +21,25 @@ public class CLI {
 
     {
         actionMap.put("in", () -> {
-            String diskName = commandArgs[1];
-            DiskIO dio = new DiskIO();
-            dio.initialize(diskName);
-            fs = new FileSystem(dio);
-            if (DiskIO.diskExists(diskName)) {
-                fs.initFileSystem();
-                fs.loadFileSystem();
-            } else {
-                fs.initFileSystem();
-                fs.initEmptyFileSystem();
+            if (argNum(2)) {
+                String diskName = commandArgs[1];
+                DiskIO dio = new DiskIO();
+                dio.initialize(diskName);
+                fs = new FileSystem(dio);
+                if (DiskIO.diskExists(diskName)) {
+                    fs.initFileSystem();
+                    fs.loadFileSystem();
+                } else {
+                    fs.initFileSystem();
+                    fs.initEmptyFileSystem();
+                }
             }
         });
         actionMap.put("sv", () -> {
-            String diskName = commandArgs[1];
-            fs.saveFileSystem(diskName);
+            if (argNum(2)) {
+                String diskName = commandArgs[1];
+                fs.saveFileSystem(diskName);
+            }
         });
     }
 
@@ -56,20 +60,39 @@ public class CLI {
                     e.printStackTrace();
                 }
             }
-            Thread.currentThread().interrupt();
+            executor.shutdown();
+            try {
+                System.out.println("Finishing CLI");
+                executor.awaitTermination(1000, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+            }
         });
 
-        executor.shutdown();
-        try {
-            System.out.println("Finishing CLI");
-            executor.awaitTermination(1000, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-        }
+
     }
 
     private void commandHandler(String[] ss) {
-        System.out.println("Got command: " + Arrays.toString(ss));
-        this.actionMap.get(ss[0]).run();
+        if (actionMap.containsKey(ss[0])) {
+            this.actionMap.get(ss[0]).run();
+        } else {
+            printHelp();
+        }
+    }
+
+    private boolean argNum(int n) {
+        if (this.commandArgs.length == n) {
+            return true;
+        } else {
+            printHelp();
+            return false;
+        }
+    }
+
+    private void printHelp() {
+        System.out.println("Available commands: \n" +
+                " (in <diskName>), (sv <diskName>),\n" +
+                " (dr), (op <fileName>), (cl <fileName>), (de <fileName>),\n" +
+                " (rd <index> <count>), (wr <index> <char> <count>), (sk <index> <pos>)");
     }
 }
