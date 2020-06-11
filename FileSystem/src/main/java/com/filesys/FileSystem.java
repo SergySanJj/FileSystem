@@ -8,7 +8,7 @@ import java.util.BitSet;
 
 public class FileSystem {
     public static final int bitmapByteLength = 8;
-    public static final int fileDescriptorCount = 16;
+    public static final int fileDescriptorCount = 24;
 
     private DiskIO dio;
 
@@ -38,7 +38,7 @@ public class FileSystem {
         fileDescriptors[0] = new FileDescriptor(0, new int[]{fdsPerBlock + 1, fdsPerBlock + 2, fdsPerBlock + 3});
     }
 
-    public void loadFileSystem() throws Exception {
+    public void loadFileSystem() {
         ByteBuffer blockBuffer = ByteBuffer.allocate(DiskIO.getBlockSize());
         dio.read_block(0, blockBuffer);
         bitmap = BitSet.valueOf(blockBuffer);
@@ -46,7 +46,11 @@ public class FileSystem {
         fileDescriptors = new FileDescriptor[fileDescriptorCount];
         FileDescriptor.deserializeFromDisk(dio, fileDescriptors);
 
-        Directory.deserializeFromDisk(directory, dio);
+        try {
+            Directory.deserializeFromDisk(directory, dio);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 
