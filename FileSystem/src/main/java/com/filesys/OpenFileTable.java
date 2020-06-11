@@ -33,4 +33,11 @@ public class OpenFileTable {
         }
         return -1;
     }
+
+    public int getFreeOFTEntryIndex() {
+        for (int i = 1; i < 4; i++) {
+            if (entries[i] == null) return i;
+        }
+        return -1;
+    }
 }

@@ -92,4 +92,18 @@ public class Directory {
             }
         }
     }
+
+    public int getFileDescriptorIndex(String fileName) {
+        for (Directory.DirEntry dirEntry : entries) {
+            if (dirEntry.file_name.equals(FileSystem.fillToFileNameLen(fileName))) return dirEntry.FDIndex;
+        }
+        return -1;
+    }
+
+    public int getDirectoryEntryIndex(int FDIndex, int fileDescriptorsCount) {
+        for (int i = 0; i < fileDescriptorsCount - 1; i++) {
+            if (entries.get(i) != null && entries.get(i).FDIndex == FDIndex) return i;
+        }
+        return -1;
+    }
 }

@@ -69,12 +69,14 @@ public class FileSystem {
         dio.saveAs(diskName);
     }
 
-    public int closeFile(int oftEntryIndex) {
-        if (oftEntryIndex == 0) {
-            return STATUS_ERROR;
+    public void closeFile(int oftEntryIndex) {
+        if (oftEntryIndex <= 0) {
+            errorDrop("Open files indexing starts from 1");
+            return;
+        } else if (checkOFTIndex(oftEntryIndex) == STATUS_ERROR) {
+            errorDrop("Open file index does not exist");
+            return;
         }
-
-        if (checkOFTIndex(oftEntryIndex) == STATUS_ERROR) return STATUS_ERROR;
 
         OpenFileTable.OFTEntry oftEntry = oft.entries[oftEntryIndex];
 
@@ -95,7 +97,8 @@ public class FileSystem {
         }
 
         oft.entries[oftEntryIndex] = null;
-        return STATUS_SUCCESS;
+
+        System.out.println("file " + oftEntryIndex + " closed");
     }
 
     public void createFile(String fileName) {
@@ -142,6 +145,79 @@ public class FileSystem {
         return -1;
     }
 
+    public void open(String symbolicFileName) {
+
+        int FDIndex = directory.getFileDescriptorIndex(symbolicFileName);
+        if (FDIndex == -1) {
+            errorDrop("No such file " + symbolicFileName);
+            return;
+        }
+
+        if (oft.getOFTEntryIndex(FDIndex) != -1) {
+            errorDrop("File has been already opened.");
+            return;
+        }
+
+        int OFTEntryIndex = oft.getFreeOFTEntryIndex();
+        if (OFTEntryIndex == -1) {
+            return;
+        }
+
+        oft.entries[OFTEntryIndex] = new OpenFileTable.OFTEntry();
+        oft.entries[OFTEntryIndex].FDIndex = FDIndex;
+        oft.entries[OFTEntryIndex].currentPosition = 0;
+
+        if (fileDescriptors[FDIndex].fileLengthInBytes > 0) {
+            ByteBuffer temp = ByteBuffer.allocate(DiskIO.getBlockSize());
+            try {
+                dio.read_block(fileDescriptors[FDIndex].blockNumbers[0], temp);
+                oft.entries[OFTEntryIndex].fileBlockInBuffer = 0;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            oft.entries[OFTEntryIndex].RWBuffer = temp;
+        }
+        System.out.println("file " + symbolicFileName + " opened, index=" + OFTEntryIndex);
+    }
+
+
+    public void destroy(String symbolicFileName) {
+        int FDIndex = directory.getFileDescriptorIndex(symbolicFileName);
+        if (FDIndex == -1) {
+            errorDrop("No such file " + symbolicFileName);
+            return;
+        }
+
+        // close file if it is open
+        int OFTEntryIndex = oft.getOFTEntryIndex(FDIndex);
+        if (OFTEntryIndex != -1) {
+            closeFile(OFTEntryIndex);
+        }
+
+        // clear file blocks on disk
+        int[] fileBlocks = fileDescriptors[FDIndex].blockNumbers;
+        for (int block : fileBlocks) {
+            if (block != -1) {
+                try {
+                    dio.write_block(block, ByteBuffer.allocate(64));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                // clear bits of bitmap for now empty blocks
+                bitmap.set(block, false);
+            }
+        }
+
+        // remove file from directory
+        int dirEntryIndex = directory.getDirectoryEntryIndex(FDIndex, fileDescriptorCount);
+        directory.entries.remove(dirEntryIndex);
+
+        // clear file descriptor
+        fileDescriptors[FDIndex] = null;
+
+        System.out.println("File " + symbolicFileName + " deleted");
+    }
+
     public void displayDirectory() {
         for (Directory.DirEntry dirEntry : directory.entries) {
             String fileName = dirEntry.file_name;
@@ -161,6 +237,7 @@ public class FileSystem {
         }
         return STATUS_SUCCESS;
     }
+
 
     private boolean isPointedToByteAfterLastByte(int FDIndex) {
         int fileLength = fileDescriptors[FDIndex].fileLengthInBytes;
@@ -202,7 +279,7 @@ public class FileSystem {
         System.out.println("Error occurred: \n\t" + msg);
     }
 
-    private String fillToFileNameLen(String fileName) {
+    public static String fillToFileNameLen(String fileName) {
         while (fileName.length() < Directory.FILE_NAME_LENGTH)
             fileName += " ";
         return fileName;

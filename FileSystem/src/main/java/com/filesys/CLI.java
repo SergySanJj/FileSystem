@@ -47,6 +47,28 @@ public class CLI {
                 fs.createFile(fileName);
             }
         });
+        actionMap.put("op", () -> {
+            if (argNum(2)) {
+                String fileName = commandArgs[1];
+                fs.open(fileName);
+            }
+        });
+        actionMap.put("cl", () -> {
+            if (argNum(2)) {
+                try {
+                    Integer fileIndex = Integer.parseInt(commandArgs[1]);
+                    fs.closeFile(fileIndex);
+                } catch (Exception e) {
+                    System.out.println("Error occured:\n\tClose operation arg must be integer");
+                }
+            }
+        });
+        actionMap.put("de", () -> {
+            if (argNum(2)) {
+                String fileName = commandArgs[1];
+                fs.destroy(fileName);
+            }
+        });
         actionMap.put("dr", () -> {
             if (argNum(1)) {
                 fs.displayDirectory();
@@ -56,6 +78,7 @@ public class CLI {
 
     public void start() {
         executor.execute(() -> {
+            System.out.println("CLI started");
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             boolean endSession = false;
             while (!endSession) {
@@ -73,7 +96,7 @@ public class CLI {
             executor.shutdown();
             try {
                 System.out.println("Finishing CLI");
-                executor.awaitTermination(1000, TimeUnit.NANOSECONDS);
+                executor.awaitTermination(100, TimeUnit.NANOSECONDS);
             } catch (InterruptedException e) {
                 executor.shutdownNow();
                 Thread.currentThread().interrupt();
@@ -103,7 +126,9 @@ public class CLI {
     private void printHelp() {
         System.out.println("Available commands: \n" +
                 " (in <diskName>), (sv <diskName>),\n" +
-                " (dr), (op <fileName>), (cl <fileName>), (de <fileName>),\n" +
-                " (rd <index> <count>), (wr <index> <char> <count>), (sk <index> <pos>)");
+                " (dr), (op <fileName>), (cl <fileIndex>), (de <fileName>),\n" +
+                " (rd <fileIndex> <count>), (wr <fileIndex> <char> <count>), (sk <fileIndex> <pos>)" +
+                "\n" +
+                " (end)");
     }
 }
