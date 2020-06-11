@@ -98,6 +98,59 @@ public class FileSystem {
         return STATUS_SUCCESS;
     }
 
+    public void createFile(String fileName) {
+        fileName = fillToFileNameLen(fileName);
+        if (fileName.length() > Directory.FILE_NAME_LENGTH) {
+            errorDrop("File name must be less than " + Directory.FILE_NAME_LENGTH + " long");
+            return;
+        } else if (directory.entries.size() == FileSystem.fileDescriptorCount - 1) {
+            errorDrop("No more files can be created");
+            return;
+        }
+
+        int FDIndex = getFreeDescriptorIndex();
+        if (FDIndex == -1) {
+            errorDrop("No more files can be created");
+            return;
+        }
+
+        boolean doFileExist = false;
+        for (Directory.DirEntry dirEntry : directory.entries) {
+            if (dirEntry.file_name.equals(fileName)) {
+                doFileExist = true;
+                break;
+            }
+        }
+        if (doFileExist) {
+            errorDrop("File " + fileName + " already exists");
+            return;
+        }
+
+        try {
+            directory.addEntry(fileName, FDIndex);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        fileDescriptors[FDIndex] = new FileDescriptor();
+        System.out.println("File " + fileName + " created");
+    }
+
+    private int getFreeDescriptorIndex() {
+        for (int i = 0; i < fileDescriptorCount; i++) {
+            if (fileDescriptors[i] == null) return i;
+        }
+        return -1;
+    }
+
+    public void displayDirectory() {
+        for (Directory.DirEntry dirEntry : directory.entries) {
+            String fileName = dirEntry.file_name;
+            int fileLength = fileDescriptors[dirEntry.FDIndex].fileLengthInBytes;
+
+            System.out.println("\t" + fileName + " <" + fileLength + ">");
+        }
+    }
+
     private int checkOFTIndex(int OFTEntryIndex) {
         if (OFTEntryIndex == STATUS_ERROR) {
             return STATUS_ERROR;
@@ -143,6 +196,16 @@ public class FileSystem {
             output[i] = temp[i + 1];
         }
         return output;
+    }
+
+    private void errorDrop(String msg) {
+        System.out.println("Error occurred: \n\t" + msg);
+    }
+
+    private String fillToFileNameLen(String fileName) {
+        while (fileName.length() < Directory.FILE_NAME_LENGTH)
+            fileName += " ";
+        return fileName;
     }
 
     public static final int STATUS_SUCCESS = 1;

@@ -41,6 +41,17 @@ public class CLI {
                 fs.saveFileSystem(diskName);
             }
         });
+        actionMap.put("cr", () -> {
+            if (argNum(2)) {
+                String fileName = commandArgs[1];
+                fs.createFile(fileName);
+            }
+        });
+        actionMap.put("dr", () -> {
+            if (argNum(1)) {
+                fs.displayDirectory();
+            }
+        });
     }
 
     public void start() {
@@ -48,9 +59,8 @@ public class CLI {
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             boolean endSession = false;
             while (!endSession) {
-                String s = null;
                 try {
-                    s = br.readLine();
+                    String s = br.readLine();
                     commandArgs = s.split(" ");
                     if (commandArgs[0].equals("end")) {
                         endSession = true;
@@ -66,6 +76,7 @@ public class CLI {
                 executor.awaitTermination(1000, TimeUnit.NANOSECONDS);
             } catch (InterruptedException e) {
                 executor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         });
 
