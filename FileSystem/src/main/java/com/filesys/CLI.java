@@ -56,34 +56,56 @@ public class CLI {
         });
         actionMap.put("wr", () -> {
             if (argNum(4)) {
-                Integer index = Integer.parseInt(commandArgs[1]);
-                char character = commandArgs[2].charAt(0);
-                Integer count = Integer.parseInt(commandArgs[3]);
+                try {
+                    Integer index = Integer.parseInt(commandArgs[1]);
+                    char character = commandArgs[2].charAt(0);
+                    Integer count = Integer.parseInt(commandArgs[3]);
 
-                byte[] memArea = new byte[count];
-                Arrays.fill(memArea, (byte) character);
-                System.out.println("<" + fs.write(index, memArea, count) + "> bytes written");
+                    byte[] memArea = new byte[count];
+                    Arrays.fill(memArea, (byte) character);
+                    System.out.println("<" + fs.write(index, memArea, count) + "> bytes written");
+                } catch (Exception e) {
+                    System.out.println("Error occurred:\n\tWrite operation args must be integer char integer");
+
+                }
             }
         });
         actionMap.put("rd", () -> {
             if (argNum(3)) {
-                Integer index = Integer.parseInt(commandArgs[1]);
-                Integer count = Integer.parseInt(commandArgs[2]);
+                try {
+                    Integer index = Integer.parseInt(commandArgs[1]);
+                    Integer count = Integer.parseInt(commandArgs[2]);
 
-                if (count < 0) {
-                    return;
+                    if (count < 0) {
+                        return;
+                    }
+                    ByteBuffer readBuffer = ByteBuffer.allocate(count);
+                    int actualCount = fs.read(index, readBuffer, count);
+                    if (actualCount == FileSystem.STATUS_ERROR) {
+                        System.out.println("error");
+                        return;
+                    }
+                    char[] symbols = new char[actualCount];
+                    for (int i = 0; i < actualCount; i++) {
+                        symbols[i] = (char) readBuffer.get();
+                    }
+                    System.out.println("<" + actualCount + "> bytes read: " + Arrays.toString(symbols));
+                } catch (Exception e) {
+                    System.out.println("Error occurred:\n\tRead operation args must be integer");
+
                 }
-                ByteBuffer readBuffer = ByteBuffer.allocate(count);
-                int actualCount = fs.read(index, readBuffer, count);
-                if (actualCount == FileSystem.STATUS_ERROR) {
-                    System.out.println("error");
-                    return;
+
+            }
+        });
+        actionMap.put("sk", () -> {
+            if (argNum(3)) {
+                try {
+                    Integer index = Integer.parseInt(commandArgs[1]);
+                    Integer pos = Integer.parseInt(commandArgs[2]);
+                    fs.fileSeek(index, pos);
+                } catch (Exception e) {
+                    System.out.println("Error occurred:\n\tSeek operation args must be integer");
                 }
-                char[] symbols = new char[actualCount];
-                for (int i = 0; i < actualCount; i++) {
-                    symbols[i] = (char) readBuffer.get();
-                }
-                System.out.println("<" + actualCount + "> bytes read: " + Arrays.toString(symbols));
             }
         });
         actionMap.put("cl", () -> {

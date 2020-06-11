@@ -385,6 +385,20 @@ public class FileSystem {
     }
 
 
+    public int fileSeek(int OFTEntryIndex, int pos) {
+        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR) return STATUS_ERROR;
+
+        FileDescriptor fileDescriptor = fileDescriptors[oft.entries[OFTEntryIndex].FDIndex];
+
+        if (pos > fileDescriptor.fileLengthInBytes || pos < 0) {
+            return STATUS_ERROR;
+        }
+
+        oft.entries[OFTEntryIndex].currentPosition = pos;
+
+        return STATUS_SUCCESS;
+    }
+
     private int checkOFTIndex(int OFTEntryIndex) {
         if (OFTEntryIndex == STATUS_ERROR) {
             return STATUS_ERROR;
