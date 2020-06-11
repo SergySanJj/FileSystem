@@ -227,6 +227,164 @@ public class FileSystem {
         }
     }
 
+    public int write(int OFTEntryIndex, byte[] memArea, int count) {
+        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR || count < 0) return STATUS_ERROR;
+
+        if (count == 0) {
+            return 0;
+        }
+
+        OpenFileTable.OFTEntry OFTEntry = oft.entries[OFTEntryIndex];
+        FileDescriptor fileDescriptor = fileDescriptors[OFTEntry.FDIndex];
+
+
+        if (OFTEntry.currentPosition == END_OF_FILE) {
+            return 0;
+        }
+
+        if (writeOldBuffer(OFTEntry, fileDescriptor) == STATUS_ERROR) return STATUS_ERROR;
+
+        int currentBufferPosition = OFTEntry.currentPosition % DiskIO.getBlockSize();
+        int currentMemoryPosition = 0;
+
+        int writtenCount = 0;
+
+        if (fileDescriptor.fileLengthInBytes == 0) {
+            int newBlock = getFreeDataBlockNumber();
+            OFTEntry.fileBlockInBuffer = 0;
+            fileDescriptor.blockNumbers[OFTEntry.fileBlockInBuffer] = newBlock;
+            fileDescriptor.fileLengthInBytes += DiskIO.getBlockSize();
+            bitmap.set(newBlock, true);
+        }
+
+        // write count bytes from memArea to RWBuffer starting at currentBufferPosition
+        for (int i = 0; i < count && i < memArea.length; i++) {
+
+            // if end of buffer, check if we can load next block (allocate or read, but previously write that buffer to the disk)
+            if (currentBufferPosition == DiskIO.getBlockSize()) {
+                if (OFTEntry.fileBlockInBuffer < 2) {
+                    currentBufferPosition = 0;
+                    writeOldBuffer(OFTEntry, fileDescriptor);
+                } else {
+                    break;
+                }
+            }
+
+            // write 1 byte to file
+            OFTEntry.RWBuffer.put(currentBufferPosition, memArea[currentMemoryPosition]);
+            OFTEntry.bufferModified = true;
+
+            // update positions, writtenCount
+            writtenCount++;
+            currentBufferPosition++;
+            currentMemoryPosition++;
+            OFTEntry.currentPosition++;
+        }
+
+        // OFTEntry.currentPosition - points to first byte after last accessed
+        return writtenCount;
+    }
+
+    private int getFreeDataBlockNumber() {
+        for (int i = 8; i < 64; i++) {
+            if (!bitmap.get(i)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int writeOldBuffer(OpenFileTable.OFTEntry OFTEntry, FileDescriptor fileDescriptor) {
+
+        if (OFTEntry.fileBlockInBuffer == -1) return STATUS_SUCCESS;
+        // if buffer holds different block
+        if (OFTEntry.fileBlockInBuffer != (OFTEntry.currentPosition / DiskIO.getBlockSize())) {
+            if (OFTEntry.bufferModified) {
+                int diskBlock = fileDescriptor.blockNumbers[OFTEntry.fileBlockInBuffer];
+                try {
+                    dio.write_block(diskBlock, OFTEntry.RWBuffer);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            try {
+                int newFileBlock = OFTEntry.currentPosition / DiskIO.getBlockSize();
+
+                if (fileDescriptor.blockNumbers[newFileBlock] == -1) {
+                    int newDiskBlock = getFreeDataBlockNumber();
+                    if (newDiskBlock == -1) {
+                        return STATUS_ERROR;
+                    }
+                    fileDescriptor.blockNumbers[newFileBlock] = newDiskBlock;
+                    fileDescriptor.fileLengthInBytes += DiskIO.getBlockSize();
+                    bitmap.set(newDiskBlock, true);
+                }
+
+                ByteBuffer temp = ByteBuffer.allocate(DiskIO.getBlockSize());
+                dio.read_block(fileDescriptor.blockNumbers[newFileBlock], temp);
+                OFTEntry.RWBuffer = temp;
+                OFTEntry.bufferModified = false;
+                OFTEntry.fileBlockInBuffer = newFileBlock;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return STATUS_SUCCESS;
+    }
+
+    public int read(int OFTEntryIndex, ByteBuffer memArea, int count) {
+        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR || count < 0)
+            return STATUS_ERROR;
+
+        if (count == 0) {
+            return 0;
+        }
+
+        OpenFileTable.OFTEntry OFTEntry = oft.entries[OFTEntryIndex];
+        FileDescriptor fileDescriptor = fileDescriptors[OFTEntry.FDIndex];
+
+        if (isPointedToByteAfterLastByte(OFTEntry.FDIndex) || fileDescriptor.fileLengthInBytes == 0) {
+            return STATUS_ERROR;
+        }
+
+        if (writeOldBuffer(OFTEntry, fileDescriptor) == STATUS_ERROR) return STATUS_ERROR;
+
+        // find current position inside RWBuffer
+        int currentBufferPosition = OFTEntry.currentPosition % DiskIO.getBlockSize();
+        int currentMemoryPosition = 0;
+
+        int readCount = 0;
+
+        // read count bytes starting at RWBuffer[currentBufferPosition] to memArea
+        for (int i = 0; i < count && i < memArea.array().length; i++) {
+            // if end of file -> return number of bytes read
+            if (OFTEntry.currentPosition == fileDescriptor.fileLengthInBytes) {
+                break;
+            } else {
+                // if end of block -> write buffer to the disk, then read next block to RWBuffer
+                if (currentBufferPosition == DiskIO.getBlockSize()) {
+
+                    writeOldBuffer(OFTEntry, fileDescriptor);
+
+                    currentBufferPosition = 0;
+                }
+
+                // read 1 byte to memory
+                memArea.put(currentMemoryPosition, OFTEntry.RWBuffer.get(currentBufferPosition));
+                // update positions, readCount
+                readCount++;
+                currentBufferPosition++;
+                currentMemoryPosition++;
+                OFTEntry.currentPosition++;
+            }
+        }
+
+        // OFTEntry.currentPosition - points to first byte after last accessed
+        return readCount;
+    }
+
+
     private int checkOFTIndex(int OFTEntryIndex) {
         if (OFTEntryIndex == STATUS_ERROR) {
             return STATUS_ERROR;

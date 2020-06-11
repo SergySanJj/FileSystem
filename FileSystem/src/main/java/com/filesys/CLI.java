@@ -3,6 +3,7 @@ package com.filesys;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,13 +54,45 @@ public class CLI {
                 fs.open(fileName);
             }
         });
+        actionMap.put("wr", () -> {
+            if (argNum(4)) {
+                Integer index = Integer.parseInt(commandArgs[1]);
+                char character = commandArgs[2].charAt(0);
+                Integer count = Integer.parseInt(commandArgs[3]);
+
+                byte[] memArea = new byte[count];
+                Arrays.fill(memArea, (byte) character);
+                System.out.println("<" + fs.write(index, memArea, count) + "> bytes written");
+            }
+        });
+        actionMap.put("rd", () -> {
+            if (argNum(3)) {
+                Integer index = Integer.parseInt(commandArgs[1]);
+                Integer count = Integer.parseInt(commandArgs[2]);
+
+                if (count < 0) {
+                    return;
+                }
+                ByteBuffer readBuffer = ByteBuffer.allocate(count);
+                int actualCount = fs.read(index, readBuffer, count);
+                if (actualCount == FileSystem.STATUS_ERROR) {
+                    System.out.println("error");
+                    return;
+                }
+                char[] symbols = new char[actualCount];
+                for (int i = 0; i < actualCount; i++) {
+                    symbols[i] = (char) readBuffer.get();
+                }
+                System.out.println("<" + actualCount + "> bytes read: " + Arrays.toString(symbols));
+            }
+        });
         actionMap.put("cl", () -> {
             if (argNum(2)) {
                 try {
                     Integer fileIndex = Integer.parseInt(commandArgs[1]);
                     fs.closeFile(fileIndex);
                 } catch (Exception e) {
-                    System.out.println("Error occured:\n\tClose operation arg must be integer");
+                    System.out.println("Error occurred:\n\tClose operation arg must be integer");
                 }
             }
         });
