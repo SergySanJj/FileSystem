@@ -45,8 +45,8 @@ Minimalistic file system
   - Output: \<File \<index1\> closed\>, .., \<File \<indexN\> closed\>, Disk saved
  
  - drop \<diskName\>
-  - delete saved disk image with name \<diskName\> if such exists
-  - Output: \<diskName\> deleted
+   - delete saved disk image with name \<diskName\> if such exists
+   - Output: \<diskName\> deleted
 
 - end
   - ends CLI session
