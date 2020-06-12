@@ -380,7 +380,7 @@ public class FileSystem {
         File file = new File(diskName + ".txt");
 
         if (file.delete()) {
-            printStream.println(diskName + " is deleted");
+            printStream.println(diskName + " deleted");
         } else {
             printStream.println("Drop operation failed");
         }

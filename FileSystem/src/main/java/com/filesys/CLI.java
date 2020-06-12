@@ -91,7 +91,7 @@ public class CLI {
                     for (int i = 0; i < cnt; i++) {
                         symbols[i] = (char) readBuffer.get();
                     }
-                    printStream.println("<" + cnt + "> bytes read: " + String.valueOf(symbols));
+                    printStream.println("<" + cnt + "> bytes read: <" + String.valueOf(symbols)+ ">");
                 } catch (Exception e) {
                     printStream.println("Error occurred:\n\tRead operation args must be integer");
 
@@ -190,8 +190,8 @@ public class CLI {
         printStream.println("Available commands: \n" +
                 " (in <diskName>), (sv <diskName>),\n" +
                 " (dr), (op <fileName>), (cl <fileIndex>), (de <fileName>),\n" +
-                " (rd <fileIndex> <count>), (wr <fileIndex> <char> <count>), (sk <fileIndex> <pos>)" +
-                "\n" +
+                " (rd <fileIndex> <count>), (wr <fileIndex> <char> <count>), (sk <fileIndex> <pos>),\n" +
+                " (drop <diskName>)\n" +
                 " (end)");
     }
 }

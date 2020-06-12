@@ -1,3 +1,4 @@
+drop test
 in test
 dr
 cr f1
@@ -22,5 +23,12 @@ cl 2
 sv test
 in test
 dr
+op f4
+wr 1 c 60
+wr 1 a 8
+sk 1 0
+rd 1 100
+sv test
+in test
 dr
 end
