@@ -2,6 +2,7 @@ package com.filesys;
 
 import com.filesys.disk.Directory;
 
+import java.io.File;
 import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -93,14 +94,13 @@ public class FileSystem {
             try {
                 int currentDiskBlock = fileDescriptor.blockNumbers[currentFileBlock];
                 dio.write_block(currentDiskBlock, oft.getHandlers()[fileHandlerIndex].currData);
-            } catch (Exception e) {
-                //e.printStackTrace();
+            } catch (Exception e) {// pass
             }
         }
 
         oft.getHandlers()[fileHandlerIndex] = null;
 
-        printStream.println("file " + fileHandlerIndex + " closed");
+        printStream.println("File " + fileHandlerIndex + " closed");
     }
 
     public void createFile(String fileName) {
@@ -183,7 +183,7 @@ public class FileSystem {
             }
             oft.getHandlers()[oftIndex].currData = temp;
         }
-        printStream.println("file " + fileName + " opened, index=" + oftIndex);
+        printStream.println("File " + fileName + " opened, index=" + oftIndex);
     }
 
 
@@ -376,6 +376,16 @@ public class FileSystem {
         return readCount;
     }
 
+    public static void dropDisk(String diskName, PrintStream printStream) {
+        File file = new File(diskName + ".txt");
+
+        if (file.delete()) {
+            printStream.println(diskName + " is deleted");
+        } else {
+            printStream.println("Drop operation failed");
+        }
+    }
+
 
     public void fileSeek(int oftInde, int pos) {
         if (checkOFTIndex(oftInde) == ERR) {
@@ -388,7 +398,7 @@ public class FileSystem {
             return;
         }
         oft.getHandlers()[oftInde].currentPosition = pos;
-        printStream.println("current position is " + oft.getHandlers()[oftInde].currentPosition);
+        printStream.println("Current position is " + oft.getHandlers()[oftInde].currentPosition);
     }
 
     private int checkOFTIndex(int oftIndex) {

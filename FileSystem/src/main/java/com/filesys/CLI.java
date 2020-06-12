@@ -9,6 +9,7 @@ import java.util.concurrent.*;
 
 public class CLI {
     private FileSystem fs;
+    private DiskIO dio;
     private ExecutorService executor = Executors.newFixedThreadPool(1);
 
     private String[] commandArgs;
@@ -26,9 +27,9 @@ public class CLI {
         actionMap.put("in", () -> {
             if (argNum(2)) {
                 String diskName = commandArgs[1];
-                DiskIO dio = new DiskIO(printStream);
+                dio = new DiskIO(printStream);
                 dio.initialize(diskName);
-                fs = new FileSystem(dio,printStream);
+                fs = new FileSystem(dio, printStream);
                 if (DiskIO.diskExists(diskName)) {
                     fs.initFileSystem();
                     fs.loadFileSystem();
@@ -128,6 +129,12 @@ public class CLI {
         actionMap.put("dr", () -> {
             if (argNum(1)) {
                 fs.displayDirectory();
+            }
+        });
+        actionMap.put("drop", () -> {
+            if (argNum(2)) {
+                String diskName = commandArgs[1];
+                FileSystem.dropDisk(diskName, printStream);
             }
         });
     }
