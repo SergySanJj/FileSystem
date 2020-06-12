@@ -3,40 +3,48 @@ package com.filesys;
 import java.nio.ByteBuffer;
 
 public class OpenFileTable {
-    public static class OFTEntry {
-        ByteBuffer RWBuffer;
+    public FileHandler[] getHandlers() {
+        return handlers;
+    }
+
+    public void setHandlers(FileHandler[] handlers) {
+        this.handlers = handlers;
+    }
+
+    public static class FileHandler {
+        ByteBuffer currData;
         int currentPosition;
-        int FDIndex;
+        int fileDescr;
 
         boolean bufferModified;
         int fileBlockInBuffer;
 
-        public OFTEntry() {
-            RWBuffer = ByteBuffer.allocate(DiskIO.getBlockSize());
+        public FileHandler() {
+            currData = ByteBuffer.allocate(DiskIO.getBlockSize());
             currentPosition = -1;
-            FDIndex = -1;
+            fileDescr = -1;
 
             bufferModified = false;
             fileBlockInBuffer = -1;
         }
     }
 
-    public OFTEntry[] entries;
+    private FileHandler[] handlers;
 
     public OpenFileTable() {
-        entries = new OFTEntry[4];
+        setHandlers(new FileHandler[4]);
     }
 
-    public int getOFTEntryIndex(int FDIndex) {
-        for (int i = 1; i < entries.length; i++) {
-            if (entries[i] != null && entries[i].FDIndex == FDIndex) return i;
+    public int handlerIndex(int descriptorIndex) {
+        for (int i = 1; i < getHandlers().length; i++) {
+            if (getHandlers()[i] != null && getHandlers()[i].fileDescr == descriptorIndex) return i;
         }
         return -1;
     }
 
-    public int getFreeOFTEntryIndex() {
+    public int findFreeHandler() {
         for (int i = 1; i < 4; i++) {
-            if (entries[i] == null) return i;
+            if (getHandlers()[i] == null) return i;
         }
         return -1;
     }

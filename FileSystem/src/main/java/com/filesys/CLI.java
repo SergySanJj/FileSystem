@@ -3,6 +3,7 @@ package com.filesys;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,8 +15,14 @@ public class CLI {
     private ExecutorService executor = Executors.newFixedThreadPool(1);
 
     private String[] commandArgs;
+    PrintStream printStream;
 
     public CLI() {
+        printStream = new PrintStream(System.out);
+    }
+
+    public CLI(PrintStream printStream) {
+        this.printStream = printStream;
     }
 
     private Map<String, Runnable> actionMap = new HashMap<>();
@@ -24,7 +31,7 @@ public class CLI {
         actionMap.put("in", () -> {
             if (argNum(2)) {
                 String diskName = commandArgs[1];
-                DiskIO dio = new DiskIO();
+                DiskIO dio = new DiskIO(printStream);
                 dio.initialize(diskName);
                 fs = new FileSystem(dio);
                 if (DiskIO.diskExists(diskName)) {
@@ -61,11 +68,11 @@ public class CLI {
                     char character = commandArgs[2].charAt(0);
                     Integer count = Integer.parseInt(commandArgs[3]);
 
-                    byte[] memArea = new byte[count];
-                    Arrays.fill(memArea, (byte) character);
-                    System.out.println("<" + fs.write(index, memArea, count) + "> bytes written");
+                    byte[] result = new byte[count];
+                    Arrays.fill(result, (byte) character);
+                    printStream.println("<" + fs.write(index, result, count) + "> bytes written");
                 } catch (Exception e) {
-                    System.out.println("Error occurred:\n\tWrite operation args must be integer char integer");
+                    printStream.println("Error occurred:\n\tWrite operation args must be integer char integer");
 
                 }
             }
@@ -75,23 +82,22 @@ public class CLI {
                 try {
                     Integer index = Integer.parseInt(commandArgs[1]);
                     Integer count = Integer.parseInt(commandArgs[2]);
-
                     if (count < 0) {
                         return;
                     }
                     ByteBuffer readBuffer = ByteBuffer.allocate(count);
-                    int actualCount = fs.read(index, readBuffer, count);
-                    if (actualCount == FileSystem.STATUS_ERROR) {
-                        System.out.println("error");
+                    int cnt = fs.read(index, readBuffer, count);
+                    if (cnt == FileSystem.ERR) {
+                        printStream.println("<File is empty>");
                         return;
                     }
-                    char[] symbols = new char[actualCount];
-                    for (int i = 0; i < actualCount; i++) {
+                    char[] symbols = new char[cnt];
+                    for (int i = 0; i < cnt; i++) {
                         symbols[i] = (char) readBuffer.get();
                     }
-                    System.out.println("<" + actualCount + "> bytes read: " + Arrays.toString(symbols));
+                    printStream.println("<" + cnt + "> bytes read: " + String.valueOf(symbols));
                 } catch (Exception e) {
-                    System.out.println("Error occurred:\n\tRead operation args must be integer");
+                    printStream.println("Error occurred:\n\tRead operation args must be integer");
 
                 }
 
@@ -104,7 +110,7 @@ public class CLI {
                     Integer pos = Integer.parseInt(commandArgs[2]);
                     fs.fileSeek(index, pos);
                 } catch (Exception e) {
-                    System.out.println("Error occurred:\n\tSeek operation args must be integer");
+                    printStream.println("Error occurred:\n\tSeek operation args must be integer");
                 }
             }
         });
@@ -114,7 +120,7 @@ public class CLI {
                     Integer fileIndex = Integer.parseInt(commandArgs[1]);
                     fs.closeFile(fileIndex);
                 } catch (Exception e) {
-                    System.out.println("Error occurred:\n\tClose operation arg must be integer");
+                    printStream.println("Error occurred:\n\tClose operation arg must be integer");
                 }
             }
         });
@@ -129,11 +135,18 @@ public class CLI {
                 fs.displayDirectory();
             }
         });
+        actionMap.put("show", () -> {
+            if (argNum(2)) {
+                String fileName = commandArgs[1];
+                fs.open(fileName);
+                fs.displayDirectory();
+            }
+        });
     }
 
     public void start() {
         executor.execute(() -> {
-            System.out.println("CLI started");
+            printStream.println("CLI started");
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             boolean endSession = false;
             while (!endSession) {
@@ -150,7 +163,7 @@ public class CLI {
             }
             executor.shutdown();
             try {
-                System.out.println("Finishing CLI");
+                printStream.println("Finishing CLI");
                 executor.awaitTermination(100, TimeUnit.NANOSECONDS);
             } catch (InterruptedException e) {
                 executor.shutdownNow();
@@ -179,7 +192,7 @@ public class CLI {
     }
 
     private void printHelp() {
-        System.out.println("Available commands: \n" +
+        printStream.println("Available commands: \n" +
                 " (in <diskName>), (sv <diskName>),\n" +
                 " (dr), (op <fileName>), (cl <fileIndex>), (de <fileName>),\n" +
                 " (rd <fileIndex> <count>), (wr <fileIndex> <char> <count>), (sk <fileIndex> <pos>)" +

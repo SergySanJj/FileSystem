@@ -2,6 +2,7 @@ package com.filesys;
 
 import com.filesys.disk.Directory;
 
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
@@ -17,7 +18,15 @@ public class FileSystem {
     private Directory directory;
     private OpenFileTable oft;
 
+    private PrintStream printStream;
+
     public FileSystem(DiskIO dio) {
+        this.dio = dio;
+        printStream = new PrintStream(System.out);
+    }
+
+    public FileSystem(DiskIO dio, PrintStream printStream) {
+        this.printStream = printStream;
         this.dio = dio;
     }
 
@@ -29,8 +38,8 @@ public class FileSystem {
         directory = new Directory();
 
         oft = new OpenFileTable();
-        oft.entries[0] = new OpenFileTable.OFTEntry();
-        oft.entries[0].FDIndex = 0;
+        oft.getHandlers()[0] = new OpenFileTable.FileHandler();
+        oft.getHandlers()[0].fileDescr = 0;
     }
 
     public void initEmptyFileSystem() {
@@ -55,87 +64,89 @@ public class FileSystem {
 
 
     public void saveFileSystem(String diskName) {
-        // close files
-        for (int i = 1; i < oft.entries.length; i++) {
-            if (oft.entries[i] != null)
+        for (int i = 1; i < oft.getHandlers().length; i++) {
+            if (oft.getHandlers()[i] != null)
                 closeFile(i);
         }
-        // save fs data
+
         dio.write_block(0, ByteBuffer.wrap(bitsetToByteArray(bitmap)));
         FileDescriptor.serializeToDisk(fileDescriptors, dio);
         Directory.serializeToDisk(directory, dio);
 
-        // save disk
         dio.saveAs(diskName);
     }
 
-    public void closeFile(int oftEntryIndex) {
-        if (oftEntryIndex <= 0) {
+    public void closeFile(int fileHandlerIndex) {
+        if (fileHandlerIndex <= 0) {
             errorDrop("Open files indexing starts from 1");
             return;
-        } else if (checkOFTIndex(oftEntryIndex) == STATUS_ERROR) {
+        } else if (checkOFTIndex(fileHandlerIndex) == ERR) {
             errorDrop("Open file index does not exist");
             return;
         }
 
-        OpenFileTable.OFTEntry oftEntry = oft.entries[oftEntryIndex];
+        OpenFileTable.FileHandler fileHandler = oft.getHandlers()[fileHandlerIndex];
 
-        if (fileDescriptors[oftEntry.FDIndex].fileLengthInBytes > 0 && oftEntry.bufferModified) {
-            FileDescriptor fileDescriptor = fileDescriptors[oftEntry.FDIndex];
+        if (fileDescriptors[fileHandler.fileDescr].fileLen > 0 && fileHandler.bufferModified) {
+            FileDescriptor fileDescriptor = fileDescriptors[fileHandler.fileDescr];
 
-            int currentFileBlock = oftEntry.fileBlockInBuffer;
-            if (isPointedToByteAfterLastByte(oftEntry.FDIndex)) {
+            int currentFileBlock = fileHandler.fileBlockInBuffer;
+            if (isEOF(fileHandler.fileDescr)) {
                 currentFileBlock--;
             }
             int currentDiskBlock = fileDescriptor.blockNumbers[currentFileBlock];
 
             try {
-                dio.write_block(currentDiskBlock, oft.entries[oftEntryIndex].RWBuffer);
+                dio.write_block(currentDiskBlock, oft.getHandlers()[fileHandlerIndex].currData);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
 
-        oft.entries[oftEntryIndex] = null;
+        oft.getHandlers()[fileHandlerIndex] = null;
 
-        System.out.println("file " + oftEntryIndex + " closed");
+        printStream.println("file " + fileHandlerIndex + " closed");
     }
 
     public void createFile(String fileName) {
         fileName = fillToFileNameLen(fileName);
-        if (fileName.length() > Directory.FILE_NAME_LENGTH) {
-            errorDrop("File name must be less than " + Directory.FILE_NAME_LENGTH + " long");
+        if (fileName.length() > Directory.maxFileName) {
+            errorDrop("File name must be less than " + Directory.maxFileName + " long");
             return;
-        } else if (directory.entries.size() == FileSystem.fileDescriptorCount - 1) {
+        } else if (directory.getFiles().size() == FileSystem.fileDescriptorCount - 1) {
             errorDrop("No more files can be created");
             return;
         }
 
-        int FDIndex = getFreeDescriptorIndex();
-        if (FDIndex == -1) {
+        int descriptorIndex = getFreeDescriptorIndex();
+        if (descriptorIndex == -1) {
             errorDrop("No more files can be created");
             return;
         }
 
-        boolean doFileExist = false;
-        for (Directory.DirEntry dirEntry : directory.entries) {
-            if (dirEntry.file_name.equals(fileName)) {
-                doFileExist = true;
-                break;
-            }
-        }
-        if (doFileExist) {
+        if (fileExists(fileName)) {
             errorDrop("File " + fileName + " already exists");
             return;
         }
 
         try {
-            directory.addEntry(fileName, FDIndex);
+            directory.addEntry(fileName, descriptorIndex);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        fileDescriptors[FDIndex] = new FileDescriptor();
-        System.out.println("File " + fileName + " created");
+        fileDescriptors[descriptorIndex] = new FileDescriptor();
+        printStream.println("File " + fileName + " created");
+    }
+
+    public boolean fileExists(String fileName) {
+        boolean fileExists = false;
+        for (Directory.DirFile dirFile : directory.getFiles()) {
+            if (dirFile.getFileName().equals(fileName)) {
+                fileExists = true;
+                break;
+            }
+        }
+        return fileExists;
     }
 
     private int getFreeDescriptorIndex() {
@@ -145,57 +156,55 @@ public class FileSystem {
         return -1;
     }
 
-    public void open(String symbolicFileName) {
+    public void open(String fileName) {
 
-        int FDIndex = directory.getFileDescriptorIndex(symbolicFileName);
-        if (FDIndex == -1) {
-            errorDrop("No such file " + symbolicFileName);
+        int descriptorIndex = directory.getFileDescriptorIndex(fileName);
+        if (descriptorIndex == -1) {
+            errorDrop("No such file " + fileName);
             return;
         }
 
-        if (oft.getOFTEntryIndex(FDIndex) != -1) {
+        if (oft.handlerIndex(descriptorIndex) != -1) {
             errorDrop("File has been already opened.");
             return;
         }
 
-        int OFTEntryIndex = oft.getFreeOFTEntryIndex();
-        if (OFTEntryIndex == -1) {
+        int oftIndex = oft.findFreeHandler();
+        if (oftIndex == -1) {
             return;
         }
 
-        oft.entries[OFTEntryIndex] = new OpenFileTable.OFTEntry();
-        oft.entries[OFTEntryIndex].FDIndex = FDIndex;
-        oft.entries[OFTEntryIndex].currentPosition = 0;
+        oft.getHandlers()[oftIndex] = new OpenFileTable.FileHandler();
+        oft.getHandlers()[oftIndex].fileDescr = descriptorIndex;
+        oft.getHandlers()[oftIndex].currentPosition = 0;
 
-        if (fileDescriptors[FDIndex].fileLengthInBytes > 0) {
+        if (fileDescriptors[descriptorIndex].fileLen > 0) {
             ByteBuffer temp = ByteBuffer.allocate(DiskIO.getBlockSize());
             try {
-                dio.read_block(fileDescriptors[FDIndex].blockNumbers[0], temp);
-                oft.entries[OFTEntryIndex].fileBlockInBuffer = 0;
+                dio.read_block(fileDescriptors[descriptorIndex].blockNumbers[0], temp);
+                oft.getHandlers()[oftIndex].fileBlockInBuffer = 0;
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            oft.entries[OFTEntryIndex].RWBuffer = temp;
+            oft.getHandlers()[oftIndex].currData = temp;
         }
-        System.out.println("file " + symbolicFileName + " opened, index=" + OFTEntryIndex);
+        printStream.println("file " + fileName + " opened, index=" + oftIndex);
     }
 
 
-    public void destroy(String symbolicFileName) {
-        int FDIndex = directory.getFileDescriptorIndex(symbolicFileName);
-        if (FDIndex == -1) {
-            errorDrop("No such file " + symbolicFileName);
+    public void destroy(String fileName) {
+        int descriptorIndex = directory.getFileDescriptorIndex(fileName);
+        if (descriptorIndex == -1) {
+            errorDrop("No such file " + fileName);
             return;
         }
 
-        // close file if it is open
-        int OFTEntryIndex = oft.getOFTEntryIndex(FDIndex);
-        if (OFTEntryIndex != -1) {
-            closeFile(OFTEntryIndex);
+        int oftIndex = oft.handlerIndex(descriptorIndex);
+        if (oftIndex != -1) {
+            closeFile(oftIndex);
         }
 
-        // clear file blocks on disk
-        int[] fileBlocks = fileDescriptors[FDIndex].blockNumbers;
+        int[] fileBlocks = fileDescriptors[descriptorIndex].blockNumbers;
         for (int block : fileBlocks) {
             if (block != -1) {
                 try {
@@ -203,86 +212,81 @@ public class FileSystem {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                // clear bits of bitmap for now empty blocks
                 bitmap.set(block, false);
             }
         }
 
-        // remove file from directory
-        int dirEntryIndex = directory.getDirectoryEntryIndex(FDIndex, fileDescriptorCount);
-        directory.entries.remove(dirEntryIndex);
+        int dirEntryIndex = directory.getDirectoryEntryIndex(descriptorIndex, fileDescriptorCount);
+        directory.getFiles().remove(dirEntryIndex);
 
-        // clear file descriptor
-        fileDescriptors[FDIndex] = null;
+        fileDescriptors[descriptorIndex] = null;
 
-        System.out.println("File " + symbolicFileName + " deleted");
+        printStream.println("File " + fileName + " deleted");
     }
 
     public void displayDirectory() {
-        for (Directory.DirEntry dirEntry : directory.entries) {
-            String fileName = dirEntry.file_name;
-            int fileLength = fileDescriptors[dirEntry.FDIndex].fileLengthInBytes;
+        for (Directory.DirFile dirFile : directory.getFiles()) {
+            String fileName = dirFile.getFileName();
+            int fileLength = fileDescriptors[dirFile.getDescriptorIndex()].fileLen;
 
-            System.out.println("\t" + fileName + " <" + fileLength + ">");
+            printStream.println("\t" + fileName + " <" + fileLength + ">");
         }
     }
 
-    public int write(int OFTEntryIndex, byte[] memArea, int count) {
-        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR || count < 0) return STATUS_ERROR;
+    public int write(int oftIndex, byte[] memArea, int count) {
+        if (checkOFTIndex(oftIndex) == ERR || count < 0) return ERR;
 
         if (count == 0) {
             return 0;
         }
 
-        OpenFileTable.OFTEntry OFTEntry = oft.entries[OFTEntryIndex];
-        FileDescriptor fileDescriptor = fileDescriptors[OFTEntry.FDIndex];
+        OpenFileTable.FileHandler fileHandler = oft.getHandlers()[oftIndex];
+        FileDescriptor fileDescriptor = fileDescriptors[fileHandler.fileDescr];
 
 
-        if (OFTEntry.currentPosition == END_OF_FILE) {
+        if (fileHandler.currentPosition == fileEnd) {
             return 0;
         }
 
-        if (writeOldBuffer(OFTEntry, fileDescriptor) == STATUS_ERROR) return STATUS_ERROR;
+        if (saveBuffer(this, fileHandler, fileDescriptor) == ERR) return ERR;
 
-        int currentBufferPosition = OFTEntry.currentPosition % DiskIO.getBlockSize();
-        int currentMemoryPosition = 0;
+        int buffPos = fileHandler.currentPosition % DiskIO.getBlockSize();
+        int resPos = 0;
 
         int writtenCount = 0;
 
-        if (fileDescriptor.fileLengthInBytes == 0) {
-            int newBlock = getFreeDataBlockNumber();
-            OFTEntry.fileBlockInBuffer = 0;
-            fileDescriptor.blockNumbers[OFTEntry.fileBlockInBuffer] = newBlock;
-            fileDescriptor.fileLengthInBytes += DiskIO.getBlockSize();
-            bitmap.set(newBlock, true);
-        }
+        freeData(fileHandler, fileDescriptor);
 
-        // write count bytes from memArea to RWBuffer starting at currentBufferPosition
         for (int i = 0; i < count && i < memArea.length; i++) {
-
-            // if end of buffer, check if we can load next block (allocate or read, but previously write that buffer to the disk)
-            if (currentBufferPosition == DiskIO.getBlockSize()) {
-                if (OFTEntry.fileBlockInBuffer < 2) {
-                    currentBufferPosition = 0;
-                    writeOldBuffer(OFTEntry, fileDescriptor);
+            if (buffPos == DiskIO.getBlockSize()) {
+                if (fileHandler.fileBlockInBuffer < 2) {
+                    buffPos = 0;
+                    saveBuffer(this, fileHandler, fileDescriptor);
                 } else {
                     break;
                 }
             }
 
-            // write 1 byte to file
-            OFTEntry.RWBuffer.put(currentBufferPosition, memArea[currentMemoryPosition]);
-            OFTEntry.bufferModified = true;
+            fileHandler.currData.put(buffPos, memArea[resPos]);
+            fileHandler.bufferModified = true;
 
-            // update positions, writtenCount
             writtenCount++;
-            currentBufferPosition++;
-            currentMemoryPosition++;
-            OFTEntry.currentPosition++;
+            buffPos++;
+            resPos++;
+            fileHandler.currentPosition++;
         }
 
-        // OFTEntry.currentPosition - points to first byte after last accessed
         return writtenCount;
+    }
+
+    public void freeData(OpenFileTable.FileHandler fileHandler, FileDescriptor fileDescriptor) {
+        if (fileDescriptor.fileLen == 0) {
+            int newBlock = getFreeDataBlockNumber();
+            fileHandler.fileBlockInBuffer = 0;
+            fileDescriptor.blockNumbers[fileHandler.fileBlockInBuffer] = newBlock;
+            fileDescriptor.fileLen += DiskIO.getBlockSize();
+            bitmap.set(newBlock, true);
+        }
     }
 
     private int getFreeDataBlockNumber() {
@@ -294,126 +298,115 @@ public class FileSystem {
         return -1;
     }
 
-    private int writeOldBuffer(OpenFileTable.OFTEntry OFTEntry, FileDescriptor fileDescriptor) {
-
-        if (OFTEntry.fileBlockInBuffer == -1) return STATUS_SUCCESS;
-        // if buffer holds different block
-        if (OFTEntry.fileBlockInBuffer != (OFTEntry.currentPosition / DiskIO.getBlockSize())) {
-            if (OFTEntry.bufferModified) {
-                int diskBlock = fileDescriptor.blockNumbers[OFTEntry.fileBlockInBuffer];
+    private static int saveBuffer(FileSystem fileSystem,
+                                  OpenFileTable.FileHandler fileHandler,
+                                  FileDescriptor fileDescriptor) {
+        if (fileHandler.fileBlockInBuffer == -1)
+            return Success;
+        if (fileHandler.fileBlockInBuffer != (fileHandler.currentPosition / DiskIO.getBlockSize())) {
+            if (fileHandler.bufferModified) {
+                int diskBlock = fileDescriptor.blockNumbers[fileHandler.fileBlockInBuffer];
                 try {
-                    dio.write_block(diskBlock, OFTEntry.RWBuffer);
+                    fileSystem.dio.write_block(diskBlock, fileHandler.currData);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
 
             try {
-                int newFileBlock = OFTEntry.currentPosition / DiskIO.getBlockSize();
+                int newFileBlock = fileHandler.currentPosition / DiskIO.getBlockSize();
 
                 if (fileDescriptor.blockNumbers[newFileBlock] == -1) {
-                    int newDiskBlock = getFreeDataBlockNumber();
+                    int newDiskBlock = fileSystem.getFreeDataBlockNumber();
                     if (newDiskBlock == -1) {
-                        return STATUS_ERROR;
+                        return ERR;
                     }
                     fileDescriptor.blockNumbers[newFileBlock] = newDiskBlock;
-                    fileDescriptor.fileLengthInBytes += DiskIO.getBlockSize();
-                    bitmap.set(newDiskBlock, true);
+                    fileDescriptor.fileLen += DiskIO.getBlockSize();
+                    fileSystem.bitmap.set(newDiskBlock, true);
                 }
 
                 ByteBuffer temp = ByteBuffer.allocate(DiskIO.getBlockSize());
-                dio.read_block(fileDescriptor.blockNumbers[newFileBlock], temp);
-                OFTEntry.RWBuffer = temp;
-                OFTEntry.bufferModified = false;
-                OFTEntry.fileBlockInBuffer = newFileBlock;
+                fileSystem.dio.read_block(fileDescriptor.blockNumbers[newFileBlock], temp);
+                fileHandler.currData = temp;
+                fileHandler.bufferModified = false;
+                fileHandler.fileBlockInBuffer = newFileBlock;
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        return STATUS_SUCCESS;
+        return Success;
     }
 
-    public int read(int OFTEntryIndex, ByteBuffer memArea, int count) {
-        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR || count < 0)
-            return STATUS_ERROR;
+    public int read(int oftInde, ByteBuffer result, int count) {
+        if (checkOFTIndex(oftInde) == ERR || count < 0)
+            return ERR;
 
         if (count == 0) {
             return 0;
         }
 
-        OpenFileTable.OFTEntry OFTEntry = oft.entries[OFTEntryIndex];
-        FileDescriptor fileDescriptor = fileDescriptors[OFTEntry.FDIndex];
+        OpenFileTable.FileHandler fileHandler = oft.getHandlers()[oftInde];
+        FileDescriptor fileDescriptor = fileDescriptors[fileHandler.fileDescr];
 
-        if (isPointedToByteAfterLastByte(OFTEntry.FDIndex) || fileDescriptor.fileLengthInBytes == 0) {
-            return STATUS_ERROR;
+        if (isEOF(fileHandler.fileDescr) || fileDescriptor.fileLen == 0) {
+            return ERR;
         }
 
-        if (writeOldBuffer(OFTEntry, fileDescriptor) == STATUS_ERROR) return STATUS_ERROR;
+        if (saveBuffer(this, fileHandler, fileDescriptor) == ERR) return ERR;
 
-        // find current position inside RWBuffer
-        int currentBufferPosition = OFTEntry.currentPosition % DiskIO.getBlockSize();
-        int currentMemoryPosition = 0;
+        int buffPos = fileHandler.currentPosition % DiskIO.getBlockSize();
+        int resPos = 0;
 
         int readCount = 0;
 
-        // read count bytes starting at RWBuffer[currentBufferPosition] to memArea
-        for (int i = 0; i < count && i < memArea.array().length; i++) {
-            // if end of file -> return number of bytes read
-            if (OFTEntry.currentPosition == fileDescriptor.fileLengthInBytes) {
+        for (int i = 0; i < count && i < result.array().length; i++) {
+            if (fileHandler.currentPosition == fileDescriptor.fileLen) {
                 break;
             } else {
-                // if end of block -> write buffer to the disk, then read next block to RWBuffer
-                if (currentBufferPosition == DiskIO.getBlockSize()) {
-
-                    writeOldBuffer(OFTEntry, fileDescriptor);
-
-                    currentBufferPosition = 0;
+                if (buffPos == DiskIO.getBlockSize()) {
+                    saveBuffer(this, fileHandler, fileDescriptor);
+                    buffPos = 0;
                 }
 
-                // read 1 byte to memory
-                memArea.put(currentMemoryPosition, OFTEntry.RWBuffer.get(currentBufferPosition));
-                // update positions, readCount
+                result.put(resPos, fileHandler.currData.get(buffPos));
+
                 readCount++;
-                currentBufferPosition++;
-                currentMemoryPosition++;
-                OFTEntry.currentPosition++;
+                buffPos++;
+                resPos++;
+                fileHandler.currentPosition++;
             }
         }
 
-        // OFTEntry.currentPosition - points to first byte after last accessed
         return readCount;
     }
 
 
-    public int fileSeek(int OFTEntryIndex, int pos) {
-        if (checkOFTIndex(OFTEntryIndex) == STATUS_ERROR) return STATUS_ERROR;
-
-        FileDescriptor fileDescriptor = fileDescriptors[oft.entries[OFTEntryIndex].FDIndex];
-
-        if (pos > fileDescriptor.fileLengthInBytes || pos < 0) {
-            return STATUS_ERROR;
+    public void fileSeek(int oftInde, int pos) {
+        if (checkOFTIndex(oftInde) == ERR) {
+            errorDrop("No index " + oftInde);
+            return;
         }
-
-        oft.entries[OFTEntryIndex].currentPosition = pos;
-
-        return STATUS_SUCCESS;
+        FileDescriptor fileDescriptor = fileDescriptors[oft.getHandlers()[oftInde].fileDescr];
+        if (pos > fileDescriptor.fileLen || pos < 0) {
+            errorDrop("Pos value overflow " + pos + " of [0.." + fileDescriptor.fileLen + "]");
+            return;
+        }
+        oft.getHandlers()[oftInde].currentPosition = pos;
+        printStream.println("current position is " + oft.getHandlers()[oftInde].currentPosition);
     }
 
-    private int checkOFTIndex(int OFTEntryIndex) {
-        if (OFTEntryIndex == STATUS_ERROR) {
-            return STATUS_ERROR;
-        }
-
-        if (OFTEntryIndex <= 0 || OFTEntryIndex >= oft.entries.length || oft.entries[OFTEntryIndex] == null) {
-            return STATUS_ERROR;
-        }
-        return STATUS_SUCCESS;
+    private int checkOFTIndex(int oftIndex) {
+        if (oftIndex == ERR)
+            return ERR;
+        if (oftIndex <= 0 || oftIndex >= oft.getHandlers().length || oft.getHandlers()[oftIndex] == null)
+            return ERR;
+        return Success;
     }
 
-
-    private boolean isPointedToByteAfterLastByte(int FDIndex) {
-        int fileLength = fileDescriptors[FDIndex].fileLengthInBytes;
-        int position = oft.entries[oft.getOFTEntryIndex(FDIndex)].currentPosition;
+    private boolean isEOF(int descriptorIndex) {
+        int fileLength = fileDescriptors[descriptorIndex].fileLen;
+        int position = oft.getHandlers()[oft.handlerIndex(descriptorIndex)].currentPosition;
 
         boolean fileNotEmpty = (fileLength != 0);
         boolean positionOutOfFile = (position == fileLength);
@@ -441,25 +434,23 @@ public class FileSystem {
     private static byte[] binaryStringToBytes(String data) {
         byte[] temp = new BigInteger(data, 2).toByteArray();
         byte[] output = new byte[64];
-        for (int i = 0; i < 64; i++) {
-            output[i] = temp[i + 1];
-        }
+        System.arraycopy(temp, 1, output, 0, 64);
         return output;
     }
 
     private void errorDrop(String msg) {
-        System.out.println("Error occurred: \n\t" + msg);
+        printStream.println("Error occurred: \n\t" + msg);
     }
 
     public static String fillToFileNameLen(String fileName) {
-        while (fileName.length() < Directory.FILE_NAME_LENGTH)
+        while (fileName.length() < Directory.maxFileName)
             fileName += " ";
         return fileName;
     }
 
-    public static final int STATUS_SUCCESS = 1;
-    public static final int STATUS_ERROR = -3;
-    private static final int END_OF_FILE = 3 * DiskIO.getBlockSize();
+    public static final int Success = 1;
+    public static final int ERR = -3;
+    private static final int fileEnd = 3 * DiskIO.getBlockSize();
 }
 
 

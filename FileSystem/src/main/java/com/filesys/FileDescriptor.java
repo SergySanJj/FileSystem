@@ -3,19 +3,19 @@ package com.filesys;
 import java.nio.ByteBuffer;
 
 public class FileDescriptor {
-    int fileLengthInBytes;
-    int[] blockNumbers;
-    public static final int MAX_NUMBER_OF_BLOCKS = 3;
-
+    public static final int maxBlocks = 3;
     public static final int descriptorSize = 16;
 
+    public int fileLen;
+    public int[] blockNumbers;
+
     public FileDescriptor() {
-        fileLengthInBytes = 0;
+        fileLen = 0;
         blockNumbers = new int[]{-1, -1, -1};
     }
 
-    public FileDescriptor(int fileLengthInBytes, int[] blockNumbers) {
-        this.fileLengthInBytes = fileLengthInBytes;
+    public FileDescriptor(int fileLen, int[] blockNumbers) {
+        this.fileLen = fileLen;
         this.blockNumbers = blockNumbers;
     }
 
@@ -33,7 +33,7 @@ public class FileDescriptor {
                     block.putInt(-1);
                     block.putInt(-1);
                 } else {
-                    block.putInt(fileDescriptors[currentDescriptor].fileLengthInBytes);
+                    block.putInt(fileDescriptors[currentDescriptor].fileLen);
                     block.putInt(fileDescriptors[currentDescriptor].blockNumbers[0]);
                     block.putInt(fileDescriptors[currentDescriptor].blockNumbers[1]);
                     block.putInt(fileDescriptors[currentDescriptor].blockNumbers[2]);
@@ -59,7 +59,7 @@ public class FileDescriptor {
                     blockBuffer.getInt();
                     blockBuffer.getInt();
                 } else {
-                    blocks = new int[FileDescriptor.MAX_NUMBER_OF_BLOCKS];
+                    blocks = new int[FileDescriptor.maxBlocks];
                     blocks[0] = blockBuffer.getInt();
                     blocks[1] = blockBuffer.getInt();
                     blocks[2] = blockBuffer.getInt();

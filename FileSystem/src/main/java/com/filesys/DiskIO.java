@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 public class DiskIO {
     private Disk disk;
     private String diskName;
+    PrintStream printStream;
 
     private static int blockSize = 64;
     private int logicalBlocks;
@@ -35,8 +36,6 @@ public class DiskIO {
         return blockSize;
     }
 
-    public DiskIO() {
-    }
 
     public void initialize(String diskName) {
         if (diskExists(diskName)) {
@@ -64,10 +63,10 @@ public class DiskIO {
             o.close();
             f.close();
 
-            System.out.println("Disk saved");
+            printStream.println("Disk saved");
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Error occurred during saving " + diskName + " disk data");
+            printStream.println("Error occurred during saving " + diskName + " disk data");
         }
     }
 
@@ -83,16 +82,16 @@ public class DiskIO {
             oi.close();
             fi.close();
 
-            System.out.println("Disk restored");
+            printStream.println("Disk restored");
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Error occurred during loading " + diskName + " disk data");
+            printStream.println("Error occurred during loading " + diskName + " disk data");
         }
     }
 
     private void createNewDisk() {
         this.disk = new Disk();
-        System.out.println("Disk initialized");
+        printStream.println("Disk initialized");
     }
 
 
@@ -101,5 +100,11 @@ public class DiskIO {
         return f.exists() && !f.isDirectory();
     }
 
+    public DiskIO() {
+        printStream = new PrintStream(System.out);
+    }
 
+    public DiskIO(PrintStream printStream) {
+        this.printStream = printStream;
+    }
 }
