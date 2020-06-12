@@ -28,9 +28,6 @@ public class DiskIO {
         }
     }
 
-    public DiskIO(int blockSize) {
-        this.blockSize = blockSize;
-    }
 
     public static int getBlockSize() {
         return blockSize;
@@ -98,10 +95,6 @@ public class DiskIO {
     public static boolean diskExists(String diskName) {
         File f = new File(diskName + ".txt");
         return f.exists() && !f.isDirectory();
-    }
-
-    public DiskIO() {
-        printStream = new PrintStream(System.out);
     }
 
     public DiskIO(PrintStream printStream) {

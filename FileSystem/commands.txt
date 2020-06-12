@@ -1,0 +1,26 @@
+in test
+dr
+cr f1
+cr f2
+dr
+cr f3
+cr f4
+de f3
+dr
+op f1
+op f2
+cl 1
+rd 2 100
+sk 2 0
+wr 2 a 10
+wr 2 b 20
+sk 2 3
+wr 2 c 5
+sk 2 0
+rd 2 100
+cl 2
+sv test
+in test
+dr
+dr
+end

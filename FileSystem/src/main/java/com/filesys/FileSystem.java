@@ -20,11 +20,6 @@ public class FileSystem {
 
     private PrintStream printStream;
 
-    public FileSystem(DiskIO dio) {
-        this.dio = dio;
-        printStream = new PrintStream(System.out);
-    }
-
     public FileSystem(DiskIO dio, PrintStream printStream) {
         this.printStream = printStream;
         this.dio = dio;
@@ -94,12 +89,12 @@ public class FileSystem {
             if (isEOF(fileHandler.fileDescr)) {
                 currentFileBlock--;
             }
-            int currentDiskBlock = fileDescriptor.blockNumbers[currentFileBlock];
 
             try {
+                int currentDiskBlock = fileDescriptor.blockNumbers[currentFileBlock];
                 dio.write_block(currentDiskBlock, oft.getHandlers()[fileHandlerIndex].currData);
             } catch (Exception e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
 

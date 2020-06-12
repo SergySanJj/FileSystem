@@ -1,9 +1,6 @@
 package com.filesys;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,12 +13,10 @@ public class CLI {
 
     private String[] commandArgs;
     PrintStream printStream;
+    InputStreamReader inputStream;
 
-    public CLI() {
-        printStream = new PrintStream(System.out);
-    }
-
-    public CLI(PrintStream printStream) {
+    public CLI(PrintStream printStream, InputStreamReader inputStream) {
+        this.inputStream = inputStream;
         this.printStream = printStream;
     }
 
@@ -33,7 +28,7 @@ public class CLI {
                 String diskName = commandArgs[1];
                 DiskIO dio = new DiskIO(printStream);
                 dio.initialize(diskName);
-                fs = new FileSystem(dio);
+                fs = new FileSystem(dio,printStream);
                 if (DiskIO.diskExists(diskName)) {
                     fs.initFileSystem();
                     fs.loadFileSystem();
@@ -135,19 +130,12 @@ public class CLI {
                 fs.displayDirectory();
             }
         });
-        actionMap.put("show", () -> {
-            if (argNum(2)) {
-                String fileName = commandArgs[1];
-                fs.open(fileName);
-                fs.displayDirectory();
-            }
-        });
     }
 
     public void start() {
         executor.execute(() -> {
             printStream.println("CLI started");
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            BufferedReader br = new BufferedReader(inputStream);
             boolean endSession = false;
             while (!endSession) {
                 try {
